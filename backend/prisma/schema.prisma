@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  password      String
+  name          String
+  role          UserRole     @default(CUSTOMER)
+  phone         String?
+  addresses     Address[]
+  orders        Order[]
+  payments      Payment[]
+  cart          Cart?
+  reviews       Review[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+enum UserRole {
+  CUSTOMER
+  VENDOR
+  DRIVER
+  ADMIN
+}
+
+model Vendor {
+  id          String       @id @default(cuid())
+  user        User         @relation(fields: [userId], references: [id])
+  userId      String       @unique
+  restaurants Restaurant[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Restaurant {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  photos      String[]     @default([])
+  rating      Float        @default(0)
+  ratingCount Int          @default(0)
+  deliveryFee Decimal      @db.Decimal(10, 2) @default(0)
+  deliveryTimeMinutes Int?
+  address     Address?
+  vendor      Vendor       @relation(fields: [vendorId], references: [id])
+  vendorId    String
+  categories  Category[]
+  menuItems   MenuItem[]
+  orders      Order[]
+  reviews     Review[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Category {
+  id            String      @id @default(cuid())
+  name          String
+  restaurant    Restaurant  @relation(fields: [restaurantId], references: [id])
+  restaurantId  String
+  menuItems     MenuItem[]
+}
+
+model MenuItem {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?
+  price         Decimal    @db.Decimal(10, 2)
+  imageUrl      String?
+  isAvailable   Boolean    @default(true)
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId  String
+  category      Category?  @relation(fields: [categoryId], references: [id])
+  categoryId    String?
+  orderItems    OrderItem[]
+}
+
+model Cart {
+  id        String      @id @default(cuid())
+  user      User        @relation(fields: [userId], references: [id])
+  userId    String      @unique
+  items     CartItem[]
+  updatedAt DateTime    @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  cartId    String
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId String
+  quantity  Int      @default(1)
+}
+
+model Order {
+  id            String       @id @default(cuid())
+  user          User         @relation(fields: [userId], references: [id])
+  userId        String
+  restaurant    Restaurant   @relation(fields: [restaurantId], references: [id])
+  restaurantId  String
+  driver        Driver?      @relation(fields: [driverId], references: [id])
+  driverId      String?
+  status        OrderStatus  @default(PENDING)
+  subtotal      Decimal      @db.Decimal(10, 2)
+  tax           Decimal      @db.Decimal(10, 2)
+  deliveryFee   Decimal      @db.Decimal(10, 2)
+  total         Decimal      @db.Decimal(10, 2)
+  items         OrderItem[]
+  payment       Payment?
+  paymentStatus PaymentStatus @default(PENDING)
+  deliveryEta   DateTime?
+  deliveryNotes String?
+  paymentMethod String?
+  address       Address?     @relation(fields: [addressId], references: [id])
+  addressId     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  ASSIGNED
+  PICKED_UP
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  order       Order    @relation(fields: [orderId], references: [id])
+  orderId     String
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItemId  String
+  quantity    Int      @default(1)
+  price       Decimal  @db.Decimal(10, 2)
+}
+
+model Driver {
+  id           String      @id @default(cuid())
+  user         User        @relation(fields: [userId], references: [id])
+  userId       String      @unique
+  currentOrder Order?
+  vehicleInfo  String?
+  location     String?
+  driverLocation DriverLocation?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model DriverLocation {
+  id        String   @id @default(cuid())
+  driver    Driver   @relation(fields: [driverId], references: [id])
+  driverId  String   @unique
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id                    String         @id @default(cuid())
+  order                 Order          @relation(fields: [orderId], references: [id])
+  orderId               String         @unique
+  user                  User           @relation(fields: [userId], references: [id])
+  userId                String
+  stripePaymentIntentId String         @unique
+  amount                Decimal        @db.Decimal(10, 2)
+  status                PaymentStatus  @default(PENDING)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Review {
+  id           String      @id @default(cuid())
+  rating       Int
+  comment      String?
+  user         User        @relation(fields: [userId], references: [id])
+  userId       String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  createdAt    DateTime    @default(now())
+}
+
+model Address {
+  id            String      @id @default(cuid())
+  label         String?
+  contactName   String
+  phone         String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  postalCode    String
+  latitude      Float?
+  longitude     Float?
+  user          User?       @relation(fields: [userId], references: [id])
+  userId        String?
+  restaurant    Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurantId  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Notification {
+  id        String     @id @default(cuid())
+  message   String
+  read      Boolean    @default(false)
+  user      User       @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime   @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
